@@ -53,7 +53,17 @@ int send_response(int fd, char *header, char *content_type, void *body, int cont
     const int max_response_size = 262144;
     char response[max_response_size];
 
+
     // Build HTTP response and store it in response
+    sprintf(response, "%s\n"
+                    "Content-Type: %s\n"
+                    "Content-Length: %d\n"
+                    "Connection: close\n"
+                    "\n"
+                    "%s",
+                    header, content_type, content_length, body);
+
+    int response_length = strlen(response);
 
     ///////////////////
     // IMPLEMENT ME! //
@@ -80,12 +90,23 @@ void get_d20(int fd)
     ///////////////////
     // IMPLEMENT ME! //
     ///////////////////
+    int num = rand() % 20 + 1;
+    char *header = "HTTP/1.1 200 OK";
+    char *ct = "text/plain";
+    // string to store integer
+    char num_str[8];
+    sprintf(num_str, "%d", num);
+    char cl[1000];
+    sprintf(cl, "%d", strlen(num_str));  
+
+
 
     // Use send_response() to send it back as text/plain data
 
     ///////////////////
     // IMPLEMENT ME! //
     ///////////////////
+    send_response(fd, header, ct, num_str, cl);
 }
 
 /**
@@ -159,14 +180,25 @@ void handle_http_request(int fd, struct cache *cache)
     ///////////////////
 
     // Read the first two components of the first line of the request 
+    char method[200];
+    char path[8192];
+
+    sscanf(request, "%s %s", method, path);
  
     // If GET, handle the get endpoints
-
+    if (strcmp("GET", method) == 0) {
     //    Check if it's /d20 and handle that special case
+        if (strcmp("/d20", path) == 0) {
+            get_d20(fd);
+        }
     //    Otherwise serve the requested file by calling get_file()
-
-
-    // (Stretch) If POST, handle the post request
+        else {
+            printf("in get_file");
+            get_file(fd, cache, path);
+        }
+    } else if (strcmp("POST", method) == 0) {
+    // (Stretch) If POST, handle the post request  
+    } 
 }
 
 /**
@@ -205,12 +237,15 @@ int main(void)
             continue;
         }
 
+
         // Print out a message that we got the connection
         inet_ntop(their_addr.ss_family,
             get_in_addr((struct sockaddr *)&their_addr),
             s, sizeof s);
         printf("server: got connection from %s\n", s);
         
+        // testing out send_response()
+        // resp_404(newfd);
         // newfd is a new socket descriptor for the new connection.
         // listenfd is still listening for new connections.
 
