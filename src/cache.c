@@ -158,6 +158,7 @@ void cache_put(struct cache *cache, char *path, char *content_type, void *conten
     if (cache->cur_size > cache->max_size) {
         struct cache_entry *old_tail = dllist_remove_tail(cache);
         hashtable_delete(cache->index, old_tail->path);
+        free_entry(old_tail);
     }
 }
 
@@ -172,7 +173,6 @@ struct cache_entry *cache_get(struct cache *cache, char *path)
     struct cache_entry *found = hashtable_get(cache->index, path);
 
     if (found == NULL) {
-        fprintf(stderr, "file not found in cache");
         return NULL;
     }
 
