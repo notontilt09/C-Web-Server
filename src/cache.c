@@ -169,4 +169,16 @@ struct cache_entry *cache_get(struct cache *cache, char *path)
     ///////////////////
     // IMPLEMENT ME! //
     ///////////////////
+    struct cache_entry *found = hashtable_get(cache->index, path);
+
+    if (found == NULL) {
+        fprintf(stderr, "file not found in cache");
+        return NULL;
+    }
+
+    dllist_move_to_head(cache, found);
+
+    return found;
+
+
 }
