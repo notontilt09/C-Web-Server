@@ -55,22 +55,26 @@ int send_response(int fd, char *header, char *content_type, void *body, int cont
 
 
     // Build HTTP response and store it in response
-    sprintf(response, "%s\n"
+    int response_length = sprintf(response, "%s\n"
                     "Content-Type: %s\n"
                     "Content-Length: %d\n"
                     "Connection: close\n"
-                    "\n"
-                    "%s",
-                    header, content_type, content_length, body);
-
-    int response_length = strlen(response);
+                    "\n",
+                    header, content_type, content_length);
 
     ///////////////////
     // IMPLEMENT ME! //
     ///////////////////
 
-    // Send it all!
+    // Send the header!
     int rv = send(fd, response, response_length, 0);
+
+    if (rv < 0) {
+        perror("send");
+    }
+
+    // Send the body.  Do this separately from the header to deal with null terminator of string issue in binary data
+    rv = send(fd, body, content_length, 0);
 
     if (rv < 0) {
         perror("send");
@@ -94,10 +98,8 @@ void get_d20(int fd)
     char *header = "HTTP/1.1 200 OK";
     char *ct = "text/plain";
     // string to store integer
-    char num_str[8];
-    sprintf(num_str, "%d", num);
-    char cl[1000];
-    sprintf(cl, "%d", strlen(num_str));  
+    char num_str[1024];
+    int cl = sprintf(num_str, "%d", num); 
 
 
 
@@ -143,6 +145,24 @@ void get_file(int fd, struct cache *cache, char *request_path)
     ///////////////////
     // IMPLEMENT ME! //
     ///////////////////
+    char filepath[4096];
+    struct file_data *filedata; 
+    char *mime_type;
+
+
+    // Fetch the 404.html file
+    snprintf(filepath, sizeof filepath, "%s%s", SERVER_ROOT, request_path);
+    filedata = file_load(filepath);
+
+    if (filedata == NULL) {
+        // TODO: make this non-fatal
+        resp_404(fd);
+    } else {
+        mime_type = mime_type_get(filepath);
+        send_response(fd, "HTTP/1.1 200 OK", mime_type, filedata->data, filedata->size);
+        file_free(filedata);
+    }
+    
 }
 
 /**
@@ -193,7 +213,6 @@ void handle_http_request(int fd, struct cache *cache)
         }
     //    Otherwise serve the requested file by calling get_file()
         else {
-            printf("in get_file");
             get_file(fd, cache, path);
         }
     } else if (strcmp("POST", method) == 0) {
@@ -209,6 +228,8 @@ int main(void)
     int newfd;  // listen on sock_fd, new connection on newfd
     struct sockaddr_storage their_addr; // connector's address information
     char s[INET6_ADDRSTRLEN];
+
+    srand(time(NULL));
 
     struct cache *cache = cache_create(10, 0);
 
