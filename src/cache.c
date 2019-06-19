@@ -142,6 +142,23 @@ void cache_put(struct cache *cache, char *path, char *content_type, void *conten
     ///////////////////
     // IMPLEMENT ME! //
     ///////////////////
+    
+    // pointer to the new cache_entry
+    struct cache_entry *new = alloc_entry(path, content_type, content, content_length);
+
+    // insert the new entry into the head of the dll
+    dllist_insert_head(cache, new);
+    // add it to the hash table
+    hashtable_put(cache->index, path, new);
+    // increase size of cache
+    cache->cur_size++;
+
+
+    // if this puts us over cache capacity, remove the tail and delete the entry from the hashtable
+    if (cache->cur_size > cache->max_size) {
+        struct cache_entry *old_tail = dllist_remove_tail(cache);
+        hashtable_delete(cache->index, old_tail->path);
+    }
 }
 
 /**
