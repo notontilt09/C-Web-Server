@@ -53,14 +53,28 @@ int send_response(int fd, char *header, char *content_type, void *body, int cont
     const int max_response_size = 262144;
     char response[max_response_size];
 
+
     // Build HTTP response and store it in response
+    int response_length = sprintf(response, "%s\n"
+                    "Content-Type: %s\n"
+                    "Content-Length: %d\n"
+                    "Connection: close\n"
+                    "\n",
+                    header, content_type, content_length);
 
     ///////////////////
     // IMPLEMENT ME! //
     ///////////////////
 
-    // Send it all!
+    // Send the header!
     int rv = send(fd, response, response_length, 0);
+
+    if (rv < 0) {
+        perror("send");
+    }
+
+    // Send the body.  Do this separately from the header to deal with null terminator of string issue in binary data
+    rv = send(fd, body, content_length, 0);
 
     if (rv < 0) {
         perror("send");
@@ -80,12 +94,21 @@ void get_d20(int fd)
     ///////////////////
     // IMPLEMENT ME! //
     ///////////////////
+    int num = rand() % 20 + 1;
+    char *header = "HTTP/1.1 200 OK";
+    char *ct = "text/plain";
+    // string to store integer
+    char num_str[1024];
+    int cl = sprintf(num_str, "%d", num); 
+
+
 
     // Use send_response() to send it back as text/plain data
 
     ///////////////////
     // IMPLEMENT ME! //
     ///////////////////
+    send_response(fd, header, ct, num_str, cl);
 }
 
 /**
@@ -122,7 +145,33 @@ void get_file(int fd, struct cache *cache, char *request_path)
     ///////////////////
     // IMPLEMENT ME! //
     ///////////////////
+    struct cache_entry *ce = cache_get(cache, request_path);
+
+    if (ce != NULL) {
+        send_response(fd, "HTTP/1.1 200 OK", ce->content_type, ce->content, ce->content_length);
+    } else {
+        char filepath[4096];
+        struct file_data *filedata; 
+        char *mime_type;
+
+
+        // Fetch the 404.html file
+        snprintf(filepath, sizeof filepath, "%s%s", SERVER_ROOT, request_path);
+        filedata = file_load(filepath);
+
+        if (filedata == NULL) {
+            // TODO: make this non-fatal
+            resp_404(fd);
+        } else {
+            mime_type = mime_type_get(filepath);
+            send_response(fd, "HTTP/1.1 200 OK", mime_type, filedata->data, filedata->size);
+            file_free(filedata);
+        }
+        
+    }
 }
+    
+
 
 /**
  * Search for the end of the HTTP header
@@ -135,6 +184,8 @@ char *find_start_of_body(char *header)
     ///////////////////
     // IMPLEMENT ME! // (Stretch)
     ///////////////////
+    (void)header;
+    return NULL;
 }
 
 /**
@@ -159,14 +210,27 @@ void handle_http_request(int fd, struct cache *cache)
     ///////////////////
 
     // Read the first two components of the first line of the request 
+    char method[200];
+    char path[8192];
+
+    sscanf(request, "%s %s", method, path);
  
     // If GET, handle the get endpoints
-
+    if (strcmp("GET", method) == 0) {
     //    Check if it's /d20 and handle that special case
+        if (strcmp("/d20", path) == 0) {
+            get_d20(fd);
+        }
+        else if (strcmp("/", path) == 0) {
+            get_file(fd, cache, "/index.html");
+        }
     //    Otherwise serve the requested file by calling get_file()
-
-
-    // (Stretch) If POST, handle the post request
+        else {
+            get_file(fd, cache, path);
+        }
+    } else if (strcmp("POST", method) == 0) {
+    // (Stretch) If POST, handle the post request  
+    } 
 }
 
 /**
@@ -177,6 +241,8 @@ int main(void)
     int newfd;  // listen on sock_fd, new connection on newfd
     struct sockaddr_storage their_addr; // connector's address information
     char s[INET6_ADDRSTRLEN];
+
+    srand(time(NULL));
 
     struct cache *cache = cache_create(10, 0);
 
@@ -205,12 +271,15 @@ int main(void)
             continue;
         }
 
+
         // Print out a message that we got the connection
         inet_ntop(their_addr.ss_family,
             get_in_addr((struct sockaddr *)&their_addr),
             s, sizeof s);
         printf("server: got connection from %s\n", s);
         
+        // testing out send_response()
+        // resp_404(newfd);
         // newfd is a new socket descriptor for the new connection.
         // listenfd is still listening for new connections.
 
